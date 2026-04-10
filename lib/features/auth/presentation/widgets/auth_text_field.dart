@@ -23,7 +23,7 @@ class AuthTextField extends StatelessWidget {
       cursorColor: AppColors.whiteColor,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: AppColors.whiteColor.withOpacity(0.5)),
+        hintStyle: TextStyle(color: AppColors.whiteColor.withValues(alpha: 0.5)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15.r),
           borderSide: BorderSide(color: AppColors.whiteColor),

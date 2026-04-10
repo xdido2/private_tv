@@ -105,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
         border: Border.all(
           color: _isPinError
               ? Colors.red
-              : AppColors.whiteColor.withOpacity(0.2),
+              : AppColors.whiteColor.withValues(alpha: 0.2),
           width: 2,
         ),
       ),
@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
         border: Border.all(
           color: _isPinError
               ? Colors.red
-              : AppColors.whiteColor.withOpacity(0.4),
+              : AppColors.whiteColor.withValues(alpha: 0.4),
           width: 2,
         ),
       ),

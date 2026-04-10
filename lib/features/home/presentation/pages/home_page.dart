@@ -1,8 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:private_tv/features/videos/presentation/bloc/videos_bloc.dart';
-import 'package:private_tv/core/widgets/logo.dart';
 import 'package:private_tv/features/settings/presentation/pages/settings_page.dart';
 import 'package:private_tv/features/videos/presentation/pages/video_list_page.dart';
 import 'package:private_tv/core/theme/app_colors.dart';
@@ -18,153 +18,261 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _isSuperuser = false;
   int _selectedIndex = 0;
+  String? _avatarUrl;
 
   @override
   void initState() {
     super.initState();
-    _loadSuperuser();
+    _loadData();
   }
 
-  Future<void> _loadSuperuser() async {
+  Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final superuser = prefs.getBool("is_superuser") ?? false;
-    setState(() => _isSuperuser = superuser);
+    final avatarUrl = prefs.getString("avatar");
+    setState(() {
+      _isSuperuser = superuser;
+      _avatarUrl = avatarUrl;
+    });
 
-    context.read<VideosBloc>().add(VideosInitEvent(onlyPrivate: false));
+    if (mounted) context.read<VideosBloc>().add(VideosInitEvent(onlyPrivate: false));
   }
 
   void _onTap(int index) {
     if (_selectedIndex == index) return;
     setState(() => _selectedIndex = index);
 
-    final onlyPrivate = _isSuperuser && index == 1;
-    context.read<VideosBloc>().add(VideosInitEvent(onlyPrivate: onlyPrivate));
+    if (index == 0) {
+      if (mounted) context.read<VideosBloc>().add(VideosInitEvent(onlyPrivate: false));
+    } else if (index == 1 && _isSuperuser) {
+      context.read<VideosBloc>().add(VideosInitEvent(onlyPrivate: true));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final tabs = [
-      VideoListPage(onlyPrivate: false),
-      if (_isSuperuser) VideoListPage(onlyPrivate: true),
-      SettingsPage(),
-    ];
+    // Dynamically build tabs based on superuser status
+    final List<Widget> tabs = [];
+    tabs.add(const VideoListPage(onlyPrivate: false));
+    if (_isSuperuser) {
+      tabs.add(const VideoListPage(onlyPrivate: true));
+    }
+    tabs.add(const SettingsPage());
 
     return Scaffold(
-      appBar: CustomAppBar(),
+      extendBodyBehindAppBar: true,
       extendBody: true,
+      appBar: CustomAppBar(avatarUrl: _avatarUrl),
       body: tabs[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppColors.containerColor,
-        selectedItemColor: AppColors.whiteColor,
-        unselectedItemColor: AppColors.whiteColor.withOpacity(0.3),
-        currentIndex: _selectedIndex,
+      bottomNavigationBar: CustomBottomNavBar(
+        selectedIndex: _selectedIndex,
         onTap: _onTap,
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          if (_isSuperuser)
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.local_fire_department),
-              label: 'Hot',
-            ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        isSuperuser: _isSuperuser,
       ),
     );
   }
 }
 
-class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
-  const CustomAppBar({super.key});
+class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String? avatarUrl;
+
+  const CustomAppBar({super.key, this.avatarUrl});
 
   @override
-  State<CustomAppBar> createState() => _CustomAppBarState();
-
-  @override
-  Size get preferredSize => const Size(double.infinity, 86);
-}
-
-class _CustomAppBarState extends State<CustomAppBar> {
-  bool _showSearch = false;
-  final _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  Size get preferredSize => Size.fromHeight(72.h);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.containerColor,
-      padding: REdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      child: SafeArea(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, animation) {
-            final offsetAnimation = Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(animation);
-            return SlideTransition(
-              position: offsetAnimation,
-              child: FadeTransition(opacity: animation, child: child),
-            );
-          },
-          child: _showSearch
-              ? Row(
-                  key: const ValueKey('search'),
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        style: TextStyle(
-                          color: AppColors.whiteColor,
-                          fontSize: 16.sp,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          height: preferredSize.height + MediaQuery.of(context).padding.top,
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top,
+            left: 24.w,
+            right: 24.w,
+            bottom: 16.h,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.background.withValues(alpha: 0.6),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Logo section
+              Row(
+                children: [
+                  Icon(
+                    Icons.lock,
+                    color: AppColors.primary,
+                    size: 24.sp,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'PrivateTV',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                          letterSpacing: -1,
                         ),
-                        cursorColor: AppColors.whiteColor,
-                        decoration: InputDecoration(
-                          hintText: 'Search...',
-                          hintStyle: TextStyle(
-                            color: AppColors.whiteColor.withOpacity(0.5),
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
+                  ),
+                ],
+              ),
+              // Actions section
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.search,
+                      color: AppColors.onSurfaceVariant,
+                      size: 24.sp,
                     ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: AppColors.whiteColor,
-                        size: 25.sp,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showSearch = false;
-                          _searchController.clear();
-                        });
-                      },
+                    onPressed: () {},
+                    splashRadius: 24.r,
+                  ),
+                  SizedBox(width: 8.w),
+                  Container(
+                    width: 32.w,
+                    height: 32.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surfaceContainerHighest,
+                      image: avatarUrl != null && avatarUrl!.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(avatarUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : const DecorationImage(
+                              image: AssetImage("assets/default_avatar.jpg"),
+                              fit: BoxFit.cover,
+                            ),
                     ),
-                  ],
-                )
-              : Row(
-                  key: const ValueKey('normal'),
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Logo(size: 30),
-                    IconButton(
-                      onPressed: () => setState(() => _showSearch = true),
-                      icon: Icon(
-                        Icons.search,
-                        color: AppColors.whiteColor,
-                        size: 25.sp,
-                      ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CustomBottomNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final Function(int) onTap;
+  final bool isSuperuser;
+
+  const CustomBottomNavBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onTap,
+    required this.isSuperuser,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 24.h),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999.r),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.9 > 400
+                  ? 400
+                  : MediaQuery.of(context).size.width * 0.9,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: AppColors.background.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(999.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavBarItem(
+                    icon: Icons.home,
+                    label: 'Home',
+                    isSelected: selectedIndex == 0,
+                    onTap: () => onTap(0),
+                  ),
+                  if (isSuperuser)
+                    _NavBarItem(
+                      icon: Icons.local_fire_department,
+                      label: 'Hot',
+                      isSelected: selectedIndex == 1,
+                      onTap: () => onTap(1),
                     ),
-                  ],
-                ),
+                  _NavBarItem(
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    isSelected: selectedIndex == (isSuperuser ? 2 : 1),
+                    onTap: () => onTap(isSuperuser ? 2 : 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.primary : Colors.grey[500],
+              size: 24.sp,
+            ),
+            SizedBox(height: 2.h),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isSelected ? AppColors.primary : Colors.grey[500],
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ],
         ),
       ),
     );
